@@ -7,12 +7,10 @@ type CreateResponse =
     | { path: string; targetUrl: string }
     | { error: string; detail?: string };
 
-// English comment: type for history record item
-interface LinkHistoryItem {
+// English comment: type for link item from API
+interface LinkItem {
   path: string;
   targetUrl: string;
-  shortUrl: string;
-  createdAt: string;
 }
 
 function normalizePath(input: string) {
@@ -21,46 +19,6 @@ function normalizePath(input: string) {
   const noLeading = s.startsWith('/') ? s.slice(1) : s;
   const noTrailing = noLeading.replace(/\/+$/, '');
   return noTrailing;
-}
-
-// English comment: localStorage key for history
-const HISTORY_STORAGE_KEY = 'microbin-link-history';
-
-// English comment: load history from localStorage
-function loadHistory(): LinkHistoryItem[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-// English comment: save history to localStorage
-function saveHistory(history: LinkHistoryItem[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
-  } catch (err) {
-    console.error('Failed to save history:', err);
-  }
-}
-
-// English comment: add new item to history
-function addToHistory(item: LinkHistoryItem) {
-  const history = loadHistory();
-  // Remove duplicate if exists
-  const filtered = history.filter(h => h.path !== item.path);
-  const updated = [item, ...filtered];
-  saveHistory(updated);
-}
-
-// English comment: remove item from history by path
-function removeFromHistory(path: string) {
-  const history = loadHistory();
-  const filtered = history.filter(h => h.path !== path);
-  saveHistory(filtered);
 }
 
 export default function Home() {
@@ -72,13 +30,38 @@ export default function Home() {
   const [resp, setResp] = useState<CreateResponse | null>(null);
   const [copied, setCopied] = useState(false);
   
-  // English comment: state for history list
-  const [history, setHistory] = useState<LinkHistoryItem[]>([]);
+  // English comment: state for links list from database
+  const [links, setLinks] = useState<LinkItem[]>([]);
+  const [loadingLinks, setLoadingLinks] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   
-  // English comment: load history on mount
+  // English comment: fetch links from API
+  async function fetchLinks() {
+    setLoadingLinks(true);
+    try {
+      const r = await fetch('/api/links', {
+        method: 'GET',
+      });
+
+      if (!r.ok) {
+        console.error('Failed to fetch links:', r.status);
+        return;
+      }
+
+      const data = await r.json().catch(() => []);
+      // English comment: handle both array response and object with links property
+      const linksArray = Array.isArray(data) ? data : (data?.links || []);
+      setLinks(linksArray);
+    } catch (err) {
+      console.error('Error fetching links:', err);
+    } finally {
+      setLoadingLinks(false);
+    }
+  }
+  
+  // English comment: load links on mount
   useEffect(() => {
-    setHistory(loadHistory());
+    fetchLinks();
   }, []);
 
   const normalizedPath = useMemo(() => normalizePath(path), [path]);
@@ -129,16 +112,9 @@ export default function Home() {
 
       setResp(data);
       
-      // English comment: save to history on success
+      // English comment: refresh links list after successful creation
       if ('path' in data && data.path) {
-        const historyItem: LinkHistoryItem = {
-          path: data.path,
-          targetUrl: data.targetUrl,
-          shortUrl,
-          createdAt: new Date().toISOString(),
-        };
-        addToHistory(historyItem);
-        setHistory(loadHistory());
+        await fetchLinks();
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -178,9 +154,8 @@ export default function Home() {
         return;
       }
 
-      // English comment: remove from history on success
-      removeFromHistory(pathToDelete);
-      setHistory(loadHistory());
+      // English comment: refresh links list after successful deletion
+      await fetchLinks();
 
       // English comment: clear current result if it matches deleted path
       if (resp && 'path' in resp && resp.path === pathToDelete) {
@@ -314,25 +289,30 @@ export default function Home() {
               </section>
           ) : null}
 
-          {history.length > 0 ? (
+          {loadingLinks ? (
               <section style={{ ...styles.card, marginTop: 16 }}>
-                <h2 style={styles.historyTitle}>历史生成短链</h2>
+                <div style={styles.hint}>加载中...</div>
+              </section>
+          ) : links.length > 0 ? (
+              <section style={{ ...styles.card, marginTop: 16 }}>
+                <h2 style={styles.historyTitle}>库中已生成短链</h2>
                 <div style={styles.historyList}>
-                  {history.map((item) => (
+                  {links.map((item) => {
+                    const base = process.env.NEXT_PUBLIC_REDIRECT_BASE_URL || 'https://link.microbin.dev';
+                    const itemShortUrl = `${base}/${encodeURI(item.path)}`;
+                    
+                    return (
                       <div key={item.path} style={styles.historyItem}>
                         <div style={styles.historyItemHeader}>
                           <div style={styles.historyPath}>
                             <code style={styles.code}>{item.path}</code>
                           </div>
-                          <div style={styles.historyDate}>
-                            {new Date(item.createdAt).toLocaleString('zh-CN')}
-                          </div>
                         </div>
                         <div style={styles.historyUrls}>
                           <div style={styles.historyUrlRow}>
                             <span style={styles.urlLabel}>短链：</span>
-                            <a href={item.shortUrl} target="_blank" rel="noreferrer" style={styles.link}>
-                              {item.shortUrl}
+                            <a href={itemShortUrl} target="_blank" rel="noreferrer" style={styles.link}>
+                              {itemShortUrl}
                             </a>
                           </div>
                           <div style={styles.historyUrlRow}>
@@ -345,7 +325,7 @@ export default function Home() {
                         <div style={styles.actions}>
                           <button
                               type="button"
-                              onClick={() => copyToClipboard(item.shortUrl)}
+                              onClick={() => copyToClipboard(itemShortUrl)}
                               style={styles.secondaryBtn}
                           >
                             复制短链
@@ -360,7 +340,8 @@ export default function Home() {
                           </button>
                         </div>
                       </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
           ) : null}

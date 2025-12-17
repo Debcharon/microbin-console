@@ -87,3 +87,32 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json(json, { status: upstream.status });
 }
+
+export async function GET() {
+    const API_BASE_URL = process.env.API_BASE_URL;
+    const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+
+    if (!API_BASE_URL || !ADMIN_TOKEN) {
+        return NextResponse.json(
+            { error: 'Server is not configured (missing API_BASE_URL or ADMIN_TOKEN).' },
+            { status: 500 }
+        );
+    }
+
+    // English comments: fetch all links from upstream API
+    const upstream = await fetch(`${API_BASE_URL}/links`, {
+        method: 'GET',
+        headers: {
+            // English comments: keep token on server side only
+            'Authorization': `Bearer ${ADMIN_TOKEN}`,
+        },
+        // Avoid caching for admin operations
+        cache: 'no-store',
+    });
+
+    const text = await upstream.text();
+    let json: unknown = null;
+    try { json = JSON.parse(text); } catch { json = { raw: text }; }
+
+    return NextResponse.json(json, { status: upstream.status });
+}
