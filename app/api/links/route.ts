@@ -49,3 +49,41 @@ export async function POST(req: Request) {
 
     return NextResponse.json(json, { status: upstream.status });
 }
+
+export async function DELETE(req: Request) {
+    const API_BASE_URL = process.env.API_BASE_URL;
+    const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+
+    if (!API_BASE_URL || !ADMIN_TOKEN) {
+        return NextResponse.json(
+            { error: 'Server is not configured (missing API_BASE_URL or ADMIN_TOKEN).' },
+            { status: 500 }
+        );
+    }
+
+    // English comments: extract path from query parameter
+    const { searchParams } = new URL(req.url);
+    const pathParam = searchParams.get('path');
+    const path = normalizePath(String(pathParam ?? ''));
+
+    if (!path) {
+        return NextResponse.json({ error: 'path is required' }, { status: 400 });
+    }
+
+    // Forward deletion request to upstream Admin API
+    const upstream = await fetch(`${API_BASE_URL}/links/${encodeURIComponent(path)}`, {
+        method: 'DELETE',
+        headers: {
+            // English comments: keep token on server side only
+            'Authorization': `Bearer ${ADMIN_TOKEN}`,
+        },
+        // Avoid caching for admin operations
+        cache: 'no-store',
+    });
+
+    const text = await upstream.text();
+    let json: unknown = null;
+    try { json = JSON.parse(text); } catch { json = { raw: text }; }
+
+    return NextResponse.json(json, { status: upstream.status });
+}

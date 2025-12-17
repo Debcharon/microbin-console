@@ -1,11 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type CreateResponse =
     | { path: string; targetUrl: string }
     | { error: string; detail?: string };
+
+// English comment: type for history record item
+interface LinkHistoryItem {
+  path: string;
+  targetUrl: string;
+  shortUrl: string;
+  createdAt: string;
+}
 
 function normalizePath(input: string) {
   // English comment: normalize user input path
@@ -13,6 +21,46 @@ function normalizePath(input: string) {
   const noLeading = s.startsWith('/') ? s.slice(1) : s;
   const noTrailing = noLeading.replace(/\/+$/, '');
   return noTrailing;
+}
+
+// English comment: localStorage key for history
+const HISTORY_STORAGE_KEY = 'microbin-link-history';
+
+// English comment: load history from localStorage
+function loadHistory(): LinkHistoryItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+// English comment: save history to localStorage
+function saveHistory(history: LinkHistoryItem[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+  } catch (err) {
+    console.error('Failed to save history:', err);
+  }
+}
+
+// English comment: add new item to history
+function addToHistory(item: LinkHistoryItem) {
+  const history = loadHistory();
+  // Remove duplicate if exists
+  const filtered = history.filter(h => h.path !== item.path);
+  const updated = [item, ...filtered];
+  saveHistory(updated);
+}
+
+// English comment: remove item from history by path
+function removeFromHistory(path: string) {
+  const history = loadHistory();
+  const filtered = history.filter(h => h.path !== path);
+  saveHistory(filtered);
 }
 
 export default function Home() {
@@ -23,6 +71,15 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<CreateResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  
+  // English comment: state for history list
+  const [history, setHistory] = useState<LinkHistoryItem[]>([]);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  
+  // English comment: load history on mount
+  useEffect(() => {
+    setHistory(loadHistory());
+  }, []);
 
   const normalizedPath = useMemo(() => normalizePath(path), [path]);
   const shortUrl = useMemo(() => {
@@ -71,6 +128,18 @@ export default function Home() {
       }
 
       setResp(data);
+      
+      // English comment: save to history on success
+      if ('path' in data && data.path) {
+        const historyItem: LinkHistoryItem = {
+          path: data.path,
+          targetUrl: data.targetUrl,
+          shortUrl,
+          createdAt: new Date().toISOString(),
+        };
+        addToHistory(historyItem);
+        setHistory(loadHistory());
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setResp({ error: '网络错误', detail: message });
@@ -81,15 +150,58 @@ export default function Home() {
 
   async function onCopy() {
     if (!shortUrl) return;
-    await navigator.clipboard.writeText(shortUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
+    await copyToClipboard(shortUrl);
   }
 
   async function onLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
     router.refresh();
+  }
+
+  // English comment: delete a short link
+  async function onDelete(pathToDelete: string) {
+    if (!confirm('确认删除短链？此操作不可逆。')) {
+      return;
+    }
+
+    setDeleting(pathToDelete);
+    try {
+      const r = await fetch(`/api/links?path=${encodeURIComponent(pathToDelete)}`, {
+        method: 'DELETE',
+      });
+
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        const errorMsg = data?.error || `删除失败：${r.status}`;
+        alert(`删除失败：${errorMsg}`);
+        return;
+      }
+
+      // English comment: remove from history on success
+      removeFromHistory(pathToDelete);
+      setHistory(loadHistory());
+
+      // English comment: clear current result if it matches deleted path
+      if (resp && 'path' in resp && resp.path === pathToDelete) {
+        setResp(null);
+        setCopied(false);
+      }
+
+      alert('删除成功');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert(`删除失败：${message}`);
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  // English comment: copy a URL to clipboard
+  async function copyToClipboard(text: string) {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
   }
 
   return (
@@ -188,9 +300,68 @@ export default function Home() {
                         <button type="button" onClick={onCopy} style={styles.primaryBtn}>
                           {copied ? '已复制' : '复制短链'}
                         </button>
+                        <button 
+                          type="button" 
+                          onClick={() => onDelete(resp.path)} 
+                          disabled={deleting === resp.path}
+                          style={styles.dangerBtn}
+                        >
+                          {deleting === resp.path ? '删除中...' : '删除短链'}
+                        </button>
                       </div>
                     </div>
                 )}
+              </section>
+          ) : null}
+
+          {history.length > 0 ? (
+              <section style={{ ...styles.card, marginTop: 16 }}>
+                <h2 style={styles.historyTitle}>历史生成短链</h2>
+                <div style={styles.historyList}>
+                  {history.map((item) => (
+                      <div key={item.path} style={styles.historyItem}>
+                        <div style={styles.historyItemHeader}>
+                          <div style={styles.historyPath}>
+                            <code style={styles.code}>{item.path}</code>
+                          </div>
+                          <div style={styles.historyDate}>
+                            {new Date(item.createdAt).toLocaleString('zh-CN')}
+                          </div>
+                        </div>
+                        <div style={styles.historyUrls}>
+                          <div style={styles.historyUrlRow}>
+                            <span style={styles.urlLabel}>短链：</span>
+                            <a href={item.shortUrl} target="_blank" rel="noreferrer" style={styles.link}>
+                              {item.shortUrl}
+                            </a>
+                          </div>
+                          <div style={styles.historyUrlRow}>
+                            <span style={styles.urlLabel}>目标：</span>
+                            <a href={item.targetUrl} target="_blank" rel="noreferrer" style={styles.linkMuted}>
+                              {item.targetUrl}
+                            </a>
+                          </div>
+                        </div>
+                        <div style={styles.actions}>
+                          <button
+                              type="button"
+                              onClick={() => copyToClipboard(item.shortUrl)}
+                              style={styles.secondaryBtn}
+                          >
+                            复制短链
+                          </button>
+                          <button
+                              type="button"
+                              onClick={() => onDelete(item.path)}
+                              disabled={deleting === item.path}
+                              style={styles.dangerBtn}
+                          >
+                            {deleting === item.path ? '删除中...' : '删除'}
+                          </button>
+                        </div>
+                      </div>
+                  ))}
+                </div>
               </section>
           ) : null}
 
@@ -317,6 +488,61 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(0,0,0,0.25)',
     border: '1px solid rgba(255,255,255,0.10)',
     overflow: 'auto',
+  },
+  dangerBtn: {
+    padding: '10px 14px',
+    borderRadius: 10,
+    border: '1px solid rgba(239,68,68,0.35)',
+    background: 'rgba(239,68,68,0.15)',
+    color: '#ff9aa2',
+    cursor: 'pointer',
+  },
+  historyTitle: {
+    margin: 0,
+    marginBottom: 14,
+    fontSize: 16,
+    fontWeight: 600,
+  },
+  historyList: {
+    display: 'grid',
+    gap: 12,
+  },
+  historyItem: {
+    padding: 14,
+    borderRadius: 10,
+    background: 'rgba(0,0,0,0.25)',
+    border: '1px solid rgba(255,255,255,0.10)',
+  },
+  historyItemHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  historyPath: {
+    flex: 1,
+    fontSize: 14,
+  },
+  historyDate: {
+    color: '#7f8aa6',
+    fontSize: 11,
+    whiteSpace: 'nowrap' as const,
+  },
+  historyUrls: {
+    display: 'grid',
+    gap: 6,
+    marginBottom: 10,
+  },
+  historyUrlRow: {
+    display: 'flex',
+    gap: 8,
+    fontSize: 12,
+    alignItems: 'baseline',
+  },
+  urlLabel: {
+    color: '#aab2c5',
+    minWidth: 40,
   },
   footer: { marginTop: 18, padding: 6 },
   footerText: { color: '#7f8aa6', fontSize: 12 },
