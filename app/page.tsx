@@ -1,10 +1,22 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type CreateResponse =
     | { path: string; targetUrl: string }
+    | { error: string; detail?: string };
+
+type LinkItem = {
+  path: string;
+  targetUrl: string;
+  enabled?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type ListResponse =
+    | { items: LinkItem[]; nextToken?: string }
     | { error: string; detail?: string };
 
 function normalizePath(input: string) {
@@ -23,6 +35,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<CreateResponse | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // State for link list management
+  const [links, setLinks] = useState<LinkItem[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const normalizedPath = useMemo(() => normalizePath(path), [path]);
   const shortUrl = useMemo(() => {
@@ -91,6 +111,136 @@ export default function Home() {
     router.push('/login');
     router.refresh();
   }
+
+  // Fetch list of links
+  async function fetchLinks() {
+    setListLoading(true);
+    setListError(null);
+    try {
+      const r = await fetch('/api/links', {
+        method: 'GET',
+      });
+
+      const data = (await r.json().catch(() => ({}))) as ListResponse;
+
+      if (!r.ok) {
+        setListError(data && 'error' in data ? data.error : `获取列表失败：${r.status}`);
+        setLinks([]);
+        return;
+      }
+
+      if ('items' in data) {
+        setLinks(data.items || []);
+      } else {
+        setLinks([]);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setListError(`网络错误: ${message}`);
+      setLinks([]);
+    } finally {
+      setListLoading(false);
+    }
+  }
+
+  // Delete a single link (from success area)
+  async function onDeleteCreated() {
+    if (!resp || 'error' in resp) return;
+    const pathToDelete = resp.path;
+    
+    if (!confirm(`确定要删除短链 "${pathToDelete}" 吗？`)) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const r = await fetch(`/api/links/${pathToDelete}`, {
+        method: 'DELETE',
+      });
+
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        setDeleteError(data?.error || `删除失败：${r.status}`);
+        return;
+      }
+
+      // Success: clear the response and refresh list
+      setResp(null);
+      alert('删除成功！');
+      await fetchLinks();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setDeleteError(`网络错误: ${message}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // Batch delete selected links
+  async function onBatchDelete() {
+    if (selectedPaths.size === 0) {
+      alert('请先勾选要删除的短链');
+      return;
+    }
+
+    if (!confirm(`确定要删除选中的 ${selectedPaths.size} 个短链吗？`)) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    const pathsToDelete = Array.from(selectedPaths);
+    const failures: string[] = [];
+
+    // Delete one by one with concurrency control
+    for (const path of pathsToDelete) {
+      try {
+        const r = await fetch(`/api/links/${path}`, {
+          method: 'DELETE',
+        });
+
+        if (!r.ok) {
+          failures.push(path);
+        }
+      } catch {
+        failures.push(path);
+      }
+    }
+
+    setDeleting(false);
+    setSelectedPaths(new Set());
+
+    if (failures.length > 0) {
+      setDeleteError(`删除失败的项：${failures.join(', ')}`);
+    } else {
+      alert('批量删除成功！');
+    }
+
+    // Refresh list
+    await fetchLinks();
+  }
+
+  // Toggle selection
+  function toggleSelect(path: string) {
+    const newSet = new Set(selectedPaths);
+    if (newSet.has(path)) {
+      newSet.delete(path);
+    } else {
+      newSet.add(path);
+    }
+    setSelectedPaths(newSet);
+  }
+
+  // Toggle select all
+  function toggleSelectAll() {
+    if (selectedPaths.size === links.length) {
+      setSelectedPaths(new Set());
+    } else {
+      setSelectedPaths(new Set(links.map(l => l.path)));
+    }
+  }
+
+  // Load links on mount
+  useEffect(() => {
+    fetchLinks();
+  }, []);
 
   return (
       <div style={styles.page}>
@@ -188,11 +338,107 @@ export default function Home() {
                         <button type="button" onClick={onCopy} style={styles.primaryBtn}>
                           {copied ? '已复制' : '复制短链'}
                         </button>
+                        <button type="button" onClick={onDeleteCreated} disabled={deleting} style={styles.dangerBtn}>
+                          {deleting ? '删除中...' : '删除该短链'}
+                        </button>
                       </div>
+                      {deleteError ? <div style={styles.errorText}>{deleteError}</div> : null}
                     </div>
                 )}
               </section>
           ) : null}
+
+          <section style={{ ...styles.card, marginTop: 24 }}>
+            <div style={styles.listHeader}>
+              <h2 style={styles.h2}>已创建短链</h2>
+              <button onClick={fetchLinks} disabled={listLoading} style={styles.secondaryBtn}>
+                {listLoading ? '加载中...' : '刷新'}
+              </button>
+            </div>
+
+            {listError ? (
+                <div style={styles.errorText}>{listError}</div>
+            ) : listLoading ? (
+                <div style={styles.hint}>加载中...</div>
+            ) : links.length === 0 ? (
+                <div style={styles.hint}>暂无短链</div>
+            ) : (
+                <div>
+                  <div style={styles.tableActions}>
+                    <label style={styles.checkboxLabel}>
+                      <input
+                          type="checkbox"
+                          checked={selectedPaths.size === links.length && links.length > 0}
+                          onChange={toggleSelectAll}
+                          style={styles.checkbox}
+                      />
+                      全选
+                    </label>
+                    <button
+                        onClick={onBatchDelete}
+                        disabled={deleting || selectedPaths.size === 0}
+                        style={styles.dangerBtn}
+                    >
+                      {deleting ? '删除中...' : `批量删除 (${selectedPaths.size})`}
+                    </button>
+                  </div>
+
+                  {deleteError ? <div style={styles.errorText}>{deleteError}</div> : null}
+
+                  <div style={styles.tableContainer}>
+                    <table style={styles.table}>
+                      <thead>
+                      <tr style={styles.tableHeaderRow}>
+                        <th style={styles.thCheckbox}></th>
+                        <th style={styles.th}>Path</th>
+                        <th style={styles.th}>Short URL</th>
+                        <th style={styles.th}>Target URL</th>
+                        <th style={styles.th}>创建时间</th>
+                        <th style={styles.th}>更新时间</th>
+                      </tr>
+                      </thead>
+                      <tbody>
+                      {links.map((link) => {
+                        const base = process.env.NEXT_PUBLIC_REDIRECT_BASE_URL || 'https://link.microbin.dev';
+                        const linkShortUrl = `${base}/${encodeURI(link.path)}`;
+                        return (
+                            <tr key={link.path} style={styles.tableRow}>
+                              <td style={styles.tdCheckbox}>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedPaths.has(link.path)}
+                                    onChange={() => toggleSelect(link.path)}
+                                    style={styles.checkbox}
+                                />
+                              </td>
+                              <td style={styles.td}>
+                                <code style={styles.code}>{link.path}</code>
+                              </td>
+                              <td style={styles.td}>
+                                <a href={linkShortUrl} target="_blank" rel="noreferrer" style={styles.link}>
+                                  {linkShortUrl}
+                                </a>
+                              </td>
+                              <td style={styles.td}>
+                                <a href={link.targetUrl} target="_blank" rel="noreferrer" style={styles.linkMuted}>
+                                  {link.targetUrl}
+                                </a>
+                              </td>
+                              <td style={styles.td}>
+                                {link.createdAt ? new Date(link.createdAt).toLocaleString('zh-CN') : '-'}
+                              </td>
+                              <td style={styles.td}>
+                                {link.updatedAt ? new Date(link.updatedAt).toLocaleString('zh-CN') : '-'}
+                              </td>
+                            </tr>
+                        );
+                      })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+            )}
+          </section>
 
           <footer style={styles.footer}>
             <span style={styles.footerText}>提示：301 会被浏览器缓存，path 不建议频繁修改目标地址。</span>
@@ -320,4 +566,73 @@ const styles: Record<string, React.CSSProperties> = {
   },
   footer: { marginTop: 18, padding: 6 },
   footerText: { color: '#7f8aa6', fontSize: 12 },
+  dangerBtn: {
+    padding: '10px 14px',
+    borderRadius: 10,
+    border: '1px solid rgba(239,68,68,0.35)',
+    background: 'rgba(239,68,68,0.15)',
+    color: '#ff9aa2',
+    cursor: 'pointer',
+  },
+  listHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  h2: { margin: 0, fontSize: 20, letterSpacing: 0.2 },
+  tableActions: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  checkboxLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 13,
+    color: '#cfd6e6',
+    cursor: 'pointer',
+  },
+  checkbox: {
+    cursor: 'pointer',
+    width: 16,
+    height: 16,
+  },
+  tableContainer: {
+    overflowX: 'auto',
+    borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.10)',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: 13,
+  },
+  tableHeaderRow: {
+    background: 'rgba(0,0,0,0.25)',
+    borderBottom: '1px solid rgba(255,255,255,0.10)',
+  },
+  th: {
+    padding: '10px 12px',
+    textAlign: 'left',
+    color: '#aab2c5',
+    fontWeight: 500,
+  },
+  thCheckbox: {
+    padding: '10px 12px',
+    width: 40,
+  },
+  tableRow: {
+    borderBottom: '1px solid rgba(255,255,255,0.05)',
+  },
+  td: {
+    padding: '10px 12px',
+    color: '#e8eaf0',
+  },
+  tdCheckbox: {
+    padding: '10px 12px',
+    width: 40,
+  },
 };

@@ -8,6 +8,38 @@ function normalizePath(input: string): string {
     return noTrailing;
 }
 
+export async function GET(req: Request) {
+    const API_BASE_URL = process.env.API_BASE_URL; // e.g. https://api.link.microbin.dev
+    const ADMIN_TOKEN = process.env.ADMIN_TOKEN;   // secret token
+
+    if (!API_BASE_URL || !ADMIN_TOKEN) {
+        return NextResponse.json(
+            { error: 'Server is not configured (missing API_BASE_URL or ADMIN_TOKEN).' },
+            { status: 500 }
+        );
+    }
+
+    // Parse query parameters from the request URL
+    const { searchParams } = new URL(req.url);
+    const queryString = searchParams.toString();
+    const upstreamUrl = `${API_BASE_URL}/links${queryString ? `?${queryString}` : ''}`;
+
+    // Forward GET request to upstream API to list all links
+    const upstream = await fetch(upstreamUrl, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${ADMIN_TOKEN}`,
+        },
+        cache: 'no-store',
+    });
+
+    const text = await upstream.text();
+    let json: unknown = null;
+    try { json = JSON.parse(text); } catch { json = { raw: text }; }
+
+    return NextResponse.json(json, { status: upstream.status });
+}
+
 export async function POST(req: Request) {
     const API_BASE_URL = process.env.API_BASE_URL; // e.g. https://api.link.microbin.dev
     const ADMIN_TOKEN = process.env.ADMIN_TOKEN;   // secret token

@@ -1,5 +1,13 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Features
+
+- **Create Short Links**: Generate custom path short links with 301 redirects
+- **Delete Links**: Remove individual links from the success screen or batch delete from the list
+- **Manage Links**: View all created short links in a table with filtering and selection
+- **Batch Operations**: Select multiple links and delete them at once
+- **Secure**: Admin token is kept on the server side, never exposed to the browser
+
 ## Configuration
 
 Create a `.env.local` file in the root directory with the following variables:
@@ -11,10 +19,21 @@ NEXT_PUBLIC_REDIRECT_BASE_URL=https://link.microbin.dev
 CONSOLE_PASSWORD=your-console-password
 ```
 
-- `API_BASE_URL`: The URL of the Microbin API
+- `API_BASE_URL`: The URL of the Microbin API (must support GET /links, POST /links, DELETE /links/{path})
 - `ADMIN_TOKEN`: Your admin token for the API
 - `NEXT_PUBLIC_REDIRECT_BASE_URL`: The base URL for generated short links
 - `CONSOLE_PASSWORD`: The password required to access the console
+
+## Upstream API Requirements
+
+The upstream API (configured via `API_BASE_URL`) must support the following endpoints:
+
+- `POST /links` - Create a new short link (requires `path` and `targetUrl`)
+- `GET /links` - List all short links (returns `{ items: [{path, targetUrl, createdAt, updatedAt, ...}], nextToken?: string }`)
+- `GET /links/{path}` - Get a single short link (optional, for future use)
+- `DELETE /links/{path}` - Delete a short link
+
+All endpoints require Bearer token authentication via the `Authorization` header.
 
 ## Getting Started
 
