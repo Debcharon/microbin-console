@@ -1,65 +1,295 @@
-import Image from "next/image";
+'use client';
+
+import { useMemo, useState } from 'react';
+
+type CreateResponse =
+    | { path: string; targetUrl: string }
+    | { error: string; detail?: string };
+
+function normalizePath(input: string) {
+  // English comment: normalize user input path
+  const s = (input || '').trim();
+  const noLeading = s.startsWith('/') ? s.slice(1) : s;
+  const noTrailing = noLeading.replace(/\/+$/, '');
+  return noTrailing;
+}
 
 export default function Home() {
+  const [path, setPath] = useState('hello3');
+  const [targetUrl, setTargetUrl] = useState('https://example.com');
+
+  const [loading, setLoading] = useState(false);
+  const [resp, setResp] = useState<CreateResponse | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const normalizedPath = useMemo(() => normalizePath(path), [path]);
+  const shortUrl = useMemo(() => {
+    const base = process.env.NEXT_PUBLIC_REDIRECT_BASE_URL || 'https://link.microbin.dev';
+    return normalizedPath ? `${base}/${encodeURI(normalizedPath)}` : '';
+  }, [normalizedPath]);
+
+  const pathError = useMemo(() => {
+    if (!normalizedPath) return 'Path 不能为空';
+    if (normalizedPath.length > 128) return 'Path 过长（建议 <= 128）';
+    if (normalizedPath.includes('..')) return 'Path 不能包含 ..';
+    if (normalizedPath.includes('//')) return 'Path 不能包含连续的 //';
+    return '';
+  }, [normalizedPath]);
+
+  const urlError = useMemo(() => {
+    const u = targetUrl.trim();
+    if (!u) return 'Target URL 不能为空';
+    if (!(u.startsWith('https://') || u.startsWith('http://'))) return 'Target URL 必须以 http:// 或 https:// 开头';
+    return '';
+  }, [targetUrl]);
+
+  async function onCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setCopied(false);
+    setResp(null);
+
+    if (pathError || urlError) {
+      setResp({ error: '表单校验失败，请检查输入' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const r = await fetch('/api/links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: normalizedPath, targetUrl: targetUrl.trim() }),
+      });
+
+      const data = (await r.json().catch(() => ({}))) as CreateResponse;
+
+      if (!r.ok) {
+        setResp(data && 'error' in data ? data : { error: `创建失败：${r.status}` });
+        return;
+      }
+
+      setResp(data);
+    } catch (err: any) {
+      setResp({ error: '网络错误', detail: String(err?.message ?? err) });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onCopy() {
+    if (!shortUrl) return;
+    await navigator.clipboard.writeText(shortUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      <div style={styles.page}>
+        <div style={styles.container}>
+          <header style={styles.header}>
+            <div>
+              <h1 style={styles.h1}>Microbin Console</h1>
+              <p style={styles.sub}>创建自定义路径短链接（301 跳转）</p>
+            </div>
+            <a href="https://link.microbin.dev" target="_blank" rel="noreferrer" style={styles.linkMuted}>
+              link.microbin.dev
+            </a>
+          </header>
+
+          <section style={styles.card}>
+            <form onSubmit={onCreate} style={styles.form}>
+              <div style={styles.row}>
+                <label style={styles.label}>
+                  Path
+                  <input
+                      value={path}
+                      onChange={(e) => setPath(e.target.value)}
+                      placeholder="hello 或 foo/bar"
+                      style={styles.input}
+                  />
+                  <div style={styles.hint}>
+                    生成链接：<code style={styles.code}>{shortUrl || '（请先输入 path）'}</code>
+                  </div>
+                  {pathError ? <div style={styles.errorText}>{pathError}</div> : null}
+                </label>
+              </div>
+
+              <div style={styles.row}>
+                <label style={styles.label}>
+                  Target URL
+                  <input
+                      value={targetUrl}
+                      onChange={(e) => setTargetUrl(e.target.value)}
+                      placeholder="https://example.com"
+                      style={styles.input}
+                  />
+                  {urlError ? <div style={styles.errorText}>{urlError}</div> : null}
+                </label>
+              </div>
+
+              <div style={styles.actions}>
+                <button type="submit" disabled={loading} style={styles.primaryBtn}>
+                  {loading ? '创建中...' : '创建短链'}
+                </button>
+
+                {shortUrl ? (
+                    <button type="button" onClick={onCopy} style={styles.secondaryBtn}>
+                      {copied ? '已复制' : '复制短链'}
+                    </button>
+                ) : null}
+              </div>
+            </form>
+          </section>
+
+          {resp ? (
+              <section style={{ ...styles.card, marginTop: 16 }}>
+                {'error' in resp ? (
+                    <div>
+                      <div style={styles.badgeError}>创建失败</div>
+                      <div style={styles.resultTitle}>{resp.error}</div>
+                      {resp.detail ? <pre style={styles.pre}>{resp.detail}</pre> : null}
+                      <div style={styles.hint}>如果提示 409，表示 path 已被占用。</div>
+                    </div>
+                ) : (
+                    <div>
+                      <div style={styles.badgeOk}>创建成功</div>
+                      <div style={styles.resultTitle}>你的短链已生成</div>
+                      <div style={styles.kv}>
+                        <div style={styles.k}>Short URL</div>
+                        <div style={styles.v}>
+                          <a href={shortUrl} target="_blank" rel="noreferrer" style={styles.link}>
+                            {shortUrl}
+                          </a>
+                        </div>
+                      </div>
+                      <div style={styles.kv}>
+                        <div style={styles.k}>Target URL</div>
+                        <div style={styles.v}>
+                          <a href={resp.targetUrl} target="_blank" rel="noreferrer" style={styles.linkMuted}>
+                            {resp.targetUrl}
+                          </a>
+                        </div>
+                      </div>
+                      <div style={styles.actions}>
+                        <button type="button" onClick={onCopy} style={styles.primaryBtn}>
+                          {copied ? '已复制' : '复制短链'}
+                        </button>
+                      </div>
+                    </div>
+                )}
+              </section>
+          ) : null}
+
+          <footer style={styles.footer}>
+            <span style={styles.footerText}>提示：301 会被浏览器缓存，path 不建议频繁修改目标地址。</span>
+          </footer>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: '100vh',
+    background: 'linear-gradient(180deg, #0b1020 0%, #070a12 60%, #05060a 100%)',
+    color: '#e8eaf0',
+    padding: 24,
+  },
+  container: { maxWidth: 820, margin: '0 auto' },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12,
+    marginBottom: 16,
+  },
+  h1: { margin: 0, fontSize: 28, letterSpacing: 0.2 },
+  sub: { margin: '6px 0 0', color: '#aab2c5', fontSize: 14 },
+  card: {
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    borderRadius: 14,
+    padding: 18,
+    boxShadow: '0 10px 30px rgba(0,0,0,0.35)',
+    backdropFilter: 'blur(8px)',
+  },
+  form: { display: 'grid', gap: 14 },
+  row: { display: 'grid', gap: 6 },
+  label: { display: 'grid', gap: 6, fontSize: 13, color: '#cfd6e6' },
+  input: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(0,0,0,0.25)',
+    color: '#e8eaf0',
+    outline: 'none',
+  },
+  hint: { color: '#aab2c5', fontSize: 12, lineHeight: 1.5 },
+  code: {
+    background: 'rgba(0,0,0,0.25)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    padding: '2px 6px',
+    borderRadius: 8,
+  },
+  errorText: { color: '#ff9aa2', fontSize: 12 },
+  actions: { display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 },
+  primaryBtn: {
+    padding: '10px 14px',
+    borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'linear-gradient(180deg, #3b82f6 0%, #2563eb 100%)',
+    color: 'white',
+    cursor: 'pointer',
+  },
+  secondaryBtn: {
+    padding: '10px 14px',
+    borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.06)',
+    color: '#e8eaf0',
+    cursor: 'pointer',
+  },
+  badgeOk: {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 999,
+    background: 'rgba(34,197,94,0.15)',
+    border: '1px solid rgba(34,197,94,0.35)',
+    color: '#7ee0a3',
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  badgeError: {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 999,
+    background: 'rgba(239,68,68,0.15)',
+    border: '1px solid rgba(239,68,68,0.35)',
+    color: '#ff9aa2',
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  resultTitle: { fontSize: 16, marginBottom: 10 },
+  kv: {
+    display: 'grid',
+    gridTemplateColumns: '120px 1fr',
+    gap: 10,
+    alignItems: 'start',
+    marginTop: 10,
+  },
+  k: { color: '#aab2c5', fontSize: 12, paddingTop: 2 },
+  v: { fontSize: 14 },
+  link: { color: '#93c5fd', textDecoration: 'none' },
+  linkMuted: { color: '#aab2c5', textDecoration: 'none' },
+  pre: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 10,
+    background: 'rgba(0,0,0,0.25)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    overflow: 'auto',
+  },
+  footer: { marginTop: 18, padding: 6 },
+  footerText: { color: '#7f8aa6', fontSize: 12 },
+};
