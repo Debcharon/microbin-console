@@ -1,5 +1,21 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Configuration
+
+Create a `.env.local` file in the root directory with the following variables:
+
+```env
+API_BASE_URL=https://api.link.microbin.dev
+ADMIN_TOKEN=your-secret-admin-token
+NEXT_PUBLIC_REDIRECT_BASE_URL=https://link.microbin.dev
+CONSOLE_PASSWORD=your-console-password
+```
+
+- `API_BASE_URL`: The URL of the Microbin API
+- `ADMIN_TOKEN`: Your admin token for the API
+- `NEXT_PUBLIC_REDIRECT_BASE_URL`: The base URL for generated short links
+- `CONSOLE_PASSWORD`: The password required to access the console
+
 ## Getting Started
 
 First, run the development server:
@@ -15,6 +31,8 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You will be redirected to the login page. Enter the password you configured in `CONSOLE_PASSWORD` to access the console.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

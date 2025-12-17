@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type CreateResponse =
     | { path: string; targetUrl: string }
@@ -15,6 +16,7 @@ function normalizePath(input: string) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [path, setPath] = useState('hello3');
   const [targetUrl, setTargetUrl] = useState('https://example.com');
 
@@ -69,8 +71,9 @@ export default function Home() {
       }
 
       setResp(data);
-    } catch (err: any) {
-      setResp({ error: '网络错误', detail: String(err?.message ?? err) });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setResp({ error: '网络错误', detail: message });
     } finally {
       setLoading(false);
     }
@@ -83,6 +86,12 @@ export default function Home() {
     setTimeout(() => setCopied(false), 1200);
   }
 
+  async function onLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  }
+
   return (
       <div style={styles.page}>
         <div style={styles.container}>
@@ -91,9 +100,14 @@ export default function Home() {
               <h1 style={styles.h1}>Microbin Console</h1>
               <p style={styles.sub}>创建自定义路径短链接（301 跳转）</p>
             </div>
-            <a href="https://link.microbin.dev" target="_blank" rel="noreferrer" style={styles.linkMuted}>
-              link.microbin.dev
-            </a>
+            <div style={styles.headerRight}>
+              <a href="https://link.microbin.dev" target="_blank" rel="noreferrer" style={styles.linkMuted}>
+                link.microbin.dev
+              </a>
+              <button onClick={onLogout} style={styles.logoutBtn}>
+                退出登录
+              </button>
+            </div>
           </header>
 
           <section style={styles.card}>
@@ -202,6 +216,20 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'baseline',
     gap: 12,
     marginBottom: 16,
+  },
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logoutBtn: {
+    padding: '6px 12px',
+    borderRadius: 8,
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.06)',
+    color: '#e8eaf0',
+    cursor: 'pointer',
+    fontSize: 12,
   },
   h1: { margin: 0, fontSize: 28, letterSpacing: 0.2 },
   sub: { margin: '6px 0 0', color: '#aab2c5', fontSize: 14 },
