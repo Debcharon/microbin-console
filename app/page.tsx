@@ -187,22 +187,20 @@ export default function Home() {
     setDeleting(true);
     setDeleteError(null);
     const pathsToDelete = Array.from(selectedPaths);
-    const failures: string[] = [];
 
-    // Delete one by one with concurrency control
-    for (const path of pathsToDelete) {
-      try {
-        const r = await fetch(`/api/links/${path}`, {
-          method: 'DELETE',
-        });
+    // Delete concurrently with Promise.allSettled
+    const results = await Promise.allSettled(
+        pathsToDelete.map(path =>
+            fetch(`/api/links/${path}`, { method: 'DELETE' })
+                .then(r => r.ok ? { path, success: true } : { path, success: false })
+                .catch(() => ({ path, success: false }))
+        )
+    );
 
-        if (!r.ok) {
-          failures.push(path);
-        }
-      } catch {
-        failures.push(path);
-      }
-    }
+    const failures = results
+        .map(r => r.status === 'fulfilled' ? r.value : null)
+        .filter(v => v && !v.success)
+        .map(v => v!.path);
 
     setDeleting(false);
     setSelectedPaths(new Set());
