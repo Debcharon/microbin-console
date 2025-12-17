@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     });
 
     const text = await upstream.text();
-    let json: any = null;
+    let json: unknown = null;
     try { json = JSON.parse(text); } catch { json = { raw: text }; }
 
     return NextResponse.json(json, { status: upstream.status });
