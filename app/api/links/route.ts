@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { isLoggedIn } from '@/lib/auth';
 
 function normalizePath(input: string): string {
-    // English comment: normalize and validate path
+    // English comments: normalize and validate path
     const s = (input || '').trim();
     const noLeading = s.startsWith('/') ? s.slice(1) : s;
     const noTrailing = noLeading.replace(/\/+$/, '');
@@ -10,12 +9,8 @@ function normalizePath(input: string): string {
 }
 
 export async function POST(req: Request) {
-    if (!isLoggedIn()) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const API_BASE_URL = process.env.API_BASE_URL;
-    const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+    const API_BASE_URL = process.env.API_BASE_URL; // e.g. https://api.link.microbin.dev
+    const ADMIN_TOKEN = process.env.ADMIN_TOKEN;   // secret token
 
     if (!API_BASE_URL || !ADMIN_TOKEN) {
         return NextResponse.json(
@@ -35,13 +30,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'targetUrl must start with http(s)://' }, { status: 400 });
     }
 
+    // Forward request to AWS Admin API
     const upstream = await fetch(`${API_BASE_URL}/links`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            // English comments: keep token on server side only
             'Authorization': `Bearer ${ADMIN_TOKEN}`,
         },
         body: JSON.stringify({ path, targetUrl }),
+        // Avoid caching for admin operations
         cache: 'no-store',
     });
 
