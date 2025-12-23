@@ -4,7 +4,19 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type CreateResponse =
-    | { path: string; targetUrl: string }
+    | {
+  path: string;
+  enabled?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  statusCode?: number;
+  randomSubdomain?: boolean;
+  subdomainLength?: number;
+  targetBaseUrl?: string;
+  targetPath?: string;
+  // Admin API currently returns these fields; keep targetUrl optional for compatibility
+  targetUrl?: string;
+}
     | { error: string; detail?: string };
 
 function normalizePath(input: string) {
@@ -19,6 +31,10 @@ export default function Home() {
   const router = useRouter();
   const [path, setPath] = useState('hello3');
   const [targetUrl, setTargetUrl] = useState('https://example.com');
+
+  // New controls
+  const [randomSubdomain, setRandomSubdomain] = useState(true);
+  const [subdomainLength, setSubdomainLength] = useState(10);
 
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<CreateResponse | null>(null);
@@ -45,12 +61,19 @@ export default function Home() {
     return '';
   }, [targetUrl]);
 
+  const randomError = useMemo(() => {
+    if (!randomSubdomain) return '';
+    if (!Number.isFinite(subdomainLength)) return '随机长度必须是数字';
+    if (subdomainLength < 3 || subdomainLength > 32) return '随机长度建议 3~32';
+    return '';
+  }, [randomSubdomain, subdomainLength]);
+
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
     setCopied(false);
     setResp(null);
 
-    if (pathError || urlError) {
+    if (pathError || urlError || randomError) {
       setResp({ error: '表单校验失败，请检查输入' });
       return;
     }
@@ -60,7 +83,12 @@ export default function Home() {
       const r = await fetch('/api/links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: normalizedPath, targetUrl: targetUrl.trim() }),
+        body: JSON.stringify({
+          path: normalizedPath,
+          targetUrl: targetUrl.trim(),
+          randomSubdomain,
+          subdomainLength,
+        }),
       });
 
       const data = (await r.json().catch(() => ({}))) as CreateResponse;
@@ -98,7 +126,7 @@ export default function Home() {
           <header style={styles.header}>
             <div>
               <h1 style={styles.h1}>Microbin Console</h1>
-              <p style={styles.sub}>创建自定义路径短链接（301 跳转）</p>
+              <p style={styles.sub}>创建自定义路径短链接（跳转）</p>
             </div>
             <div style={styles.headerRight}>
               <a href="https://link.microbin.dev" target="_blank" rel="noreferrer" style={styles.linkMuted}>
@@ -122,7 +150,7 @@ export default function Home() {
                       style={styles.input}
                   />
                   <div style={styles.hint}>
-                    生成链接：<code style={styles.code}>{shortUrl || '（请先输入 path）'}</code>
+                    生成链接： <code style={styles.code}>{shortUrl || '（请先输入 path）'}</code>
                   </div>
                   {pathError ? <div style={styles.errorText}>{pathError}</div> : null}
                 </label>
@@ -134,10 +162,43 @@ export default function Home() {
                   <input
                       value={targetUrl}
                       onChange={(e) => setTargetUrl(e.target.value)}
-                      placeholder="https://example.com"
+                      placeholder="https://example.com/168.apk"
                       style={styles.input}
                   />
                   {urlError ? <div style={styles.errorText}>{urlError}</div> : null}
+                </label>
+              </div>
+
+              {/* New: random subdomain controls */}
+              <div style={styles.row}>
+                <label style={styles.label}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                        type="checkbox"
+                        checked={randomSubdomain}
+                        onChange={(e) => setRandomSubdomain(e.target.checked)}
+                    />
+                    <span>每次访问随机二级域名（推荐用于分流/变更域名场景）</span>
+                  </div>
+
+                  {randomSubdomain ? (
+                      <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span style={{ color: '#aab2c5', fontSize: 12 }}>随机长度</span>
+                        <input
+                            type="number"
+                            value={subdomainLength}
+                            min={3}
+                            max={32}
+                            onChange={(e) => setSubdomainLength(Number(e.target.value))}
+                            style={{ ...styles.input, width: 140 }}
+                        />
+                      </div>
+                  ) : null}
+
+                  {randomError ? <div style={styles.errorText}>{randomError}</div> : null}
+                  <div style={styles.hint}>
+                    提示：为确保“每次访问都不同”，跳转会使用 302 并禁用缓存。
+                  </div>
                 </label>
               </div>
 
@@ -168,6 +229,7 @@ export default function Home() {
                     <div>
                       <div style={styles.badgeOk}>创建成功</div>
                       <div style={styles.resultTitle}>你的短链已生成</div>
+
                       <div style={styles.kv}>
                         <div style={styles.k}>Short URL</div>
                         <div style={styles.v}>
@@ -176,14 +238,23 @@ export default function Home() {
                           </a>
                         </div>
                       </div>
+
                       <div style={styles.kv}>
-                        <div style={styles.k}>Target URL</div>
+                        <div style={styles.k}>Mode</div>
                         <div style={styles.v}>
-                          <a href={resp.targetUrl} target="_blank" rel="noreferrer" style={styles.linkMuted}>
-                            {resp.targetUrl}
-                          </a>
+                          {resp.randomSubdomain ? `Random subdomain (len=${resp.subdomainLength ?? '-'})` : 'Fixed'}
                         </div>
                       </div>
+
+                      <div style={styles.kv}>
+                        <div style={styles.k}>Target</div>
+                        <div style={styles.v}>
+                          <code style={styles.code}>
+                            {(resp.targetBaseUrl ?? '') + (resp.targetPath ?? '') || resp.targetUrl || ''}
+                          </code>
+                        </div>
+                      </div>
+
                       <div style={styles.actions}>
                         <button type="button" onClick={onCopy} style={styles.primaryBtn}>
                           {copied ? '已复制' : '复制短链'}
@@ -195,7 +266,9 @@ export default function Home() {
           ) : null}
 
           <footer style={styles.footer}>
-            <span style={styles.footerText}>提示：301 会被浏览器缓存，path 不建议频繁修改目标地址。</span>
+          <span style={styles.footerText}>
+            提示：随机二级域模式会禁用缓存以保证每次访问都随机，成本会比纯缓存 301 更高。
+          </span>
           </footer>
         </div>
       </div>

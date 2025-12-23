@@ -23,11 +23,21 @@ export async function POST(req: Request) {
     const path = normalizePath(String(body?.path ?? ''));
     const targetUrl = String(body?.targetUrl ?? '').trim();
 
+    // New fields for random subdomain redirect
+    const randomSubdomain = Boolean(body?.randomSubdomain);
+    const subdomainLengthRaw = Number(body?.subdomainLength ?? 10);
+    const subdomainLength = Number.isFinite(subdomainLengthRaw) ? subdomainLengthRaw : 10;
+
     if (!path) {
         return NextResponse.json({ error: 'path is required' }, { status: 400 });
     }
     if (!(targetUrl.startsWith('https://') || targetUrl.startsWith('http://'))) {
         return NextResponse.json({ error: 'targetUrl must start with http(s)://' }, { status: 400 });
+    }
+    if (randomSubdomain) {
+        if (subdomainLength < 3 || subdomainLength > 32) {
+            return NextResponse.json({ error: 'subdomainLength must be between 3 and 32' }, { status: 400 });
+        }
     }
 
     // Forward request to AWS Admin API
@@ -38,7 +48,12 @@ export async function POST(req: Request) {
             // English comments: keep token on server side only
             'Authorization': `Bearer ${ADMIN_TOKEN}`,
         },
-        body: JSON.stringify({ path, targetUrl }),
+        body: JSON.stringify({
+            path,
+            targetUrl,
+            randomSubdomain,
+            subdomainLength,
+        }),
         // Avoid caching for admin operations
         cache: 'no-store',
     });
