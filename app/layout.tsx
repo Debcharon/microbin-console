@@ -12,9 +12,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Configurable site metadata
+const siteTitle = process.env.SITE_TITLE || "Microbin Console";
+const siteDescription = process.env.SITE_DESCRIPTION || "Create custom path short links with 301 redirects";
+
 export const metadata: Metadata = {
-  title: process.env.SITE_TITLE || "Microbin Console",
-  description: process.env.SITE_DESCRIPTION || "Create custom path short links with 301 redirects",
+  title: siteTitle,
+  description: siteDescription,
 };
 
 export default function RootLayout({
