@@ -11,10 +11,28 @@ NEXT_PUBLIC_REDIRECT_BASE_URL=https://link.microbin.dev
 CONSOLE_PASSWORD=your-console-password
 ```
 
+### Required Variables
+
 - `API_BASE_URL`: The URL of the Microbin API
 - `ADMIN_TOKEN`: Your admin token for the API
 - `NEXT_PUBLIC_REDIRECT_BASE_URL`: The base URL for generated short links
 - `CONSOLE_PASSWORD`: The password required to access the console
+
+### Optional Branding Variables
+
+You can customize the console's branding by setting these optional environment variables. If not set, default values will be used.
+
+#### Server-side Metadata (affects browser tab)
+- `SITE_TITLE`: Browser tab title (default: `Microbin Console`)
+- `SITE_DESCRIPTION`: Page meta description (default: `Microbin short link console`)
+
+#### Client-side Branding (affects visible page content)
+- `NEXT_PUBLIC_SITE_TITLE`: Main page heading (default: `Microbin Console`)
+- `NEXT_PUBLIC_SITE_SUBTITLE`: Page subtitle (default: `创建自定义路径短链接（跳转）`)
+- `NEXT_PUBLIC_HEADER_LINK_TEXT`: Text for the top-right header link (default: `link.microbin.dev`)
+- `NEXT_PUBLIC_HEADER_LINK_HREF`: URL for the top-right header link (default: `https://link.microbin.dev`)
+
+**Deployment on Vercel or other platforms**: Set these environment variables in your platform's dashboard (e.g., Vercel Project Settings → Environment Variables). Variables prefixed with `NEXT_PUBLIC_` will be exposed to the browser, while others remain server-side only.
 
 ## Getting Started
 
