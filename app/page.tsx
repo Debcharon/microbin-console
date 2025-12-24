@@ -27,6 +27,13 @@ function normalizePath(input: string) {
   return noTrailing;
 }
 
+// Read branding configuration from environment variables at module level
+const SITE_TITLE = process.env.NEXT_PUBLIC_SITE_TITLE || 'Microbin Console';
+const SITE_SUBTITLE = process.env.NEXT_PUBLIC_SITE_SUBTITLE || '创建自定义路径短链接（跳转）';
+const HEADER_LINK_TEXT = process.env.NEXT_PUBLIC_HEADER_LINK_TEXT || 'link.microbin.dev';
+const HEADER_LINK_HREF = process.env.NEXT_PUBLIC_HEADER_LINK_HREF || 'https://link.microbin.dev';
+const REDIRECT_BASE_URL = process.env.NEXT_PUBLIC_REDIRECT_BASE_URL || 'https://link.microbin.dev';
+
 export default function Home() {
   const router = useRouter();
   const [path, setPath] = useState('hello3');
@@ -42,8 +49,7 @@ export default function Home() {
 
   const normalizedPath = useMemo(() => normalizePath(path), [path]);
   const shortUrl = useMemo(() => {
-    const base = process.env.NEXT_PUBLIC_REDIRECT_BASE_URL || 'https://link.microbin.dev';
-    return normalizedPath ? `${base}/${encodeURI(normalizedPath)}` : '';
+    return normalizedPath ? `${REDIRECT_BASE_URL}/${encodeURI(normalizedPath)}` : '';
   }, [normalizedPath]);
 
   const pathError = useMemo(() => {
@@ -125,12 +131,12 @@ export default function Home() {
         <div style={styles.container}>
           <header style={styles.header}>
             <div>
-              <h1 style={styles.h1}>Microbin Console</h1>
-              <p style={styles.sub}>创建自定义路径短链接（跳转）</p>
+              <h1 style={styles.h1}>{SITE_TITLE}</h1>
+              <p style={styles.sub}>{SITE_SUBTITLE}</p>
             </div>
             <div style={styles.headerRight}>
-              <a href="https://link.microbin.dev" target="_blank" rel="noreferrer" style={styles.linkMuted}>
-                link.microbin.dev
+              <a href={HEADER_LINK_HREF} target="_blank" rel="noreferrer" style={styles.linkMuted}>
+                {HEADER_LINK_TEXT}
               </a>
               <button onClick={onLogout} style={styles.logoutBtn}>
                 退出登录
