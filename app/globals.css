@@ -25,7 +25,16 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Responsive logout button styles */
+/* Logout button icon styles */
+.logout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+/* Responsive logout button styles for mobile */
+/* Note: !important is used here to override inline styles from the React component */
 @media (max-width: 520px) {
   .logout-btn {
     padding: 8px !important;
@@ -37,18 +46,4 @@ body {
   .logout-text {
     display: none;
   }
-  
-  .logout-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-/* Ensure icon is always visible */
-.logout-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
 }
