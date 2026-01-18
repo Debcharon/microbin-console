@@ -24,3 +24,31 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Responsive logout button styles */
+@media (max-width: 520px) {
+  .logout-btn {
+    padding: 8px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+  }
+  
+  .logout-text {
+    display: none;
+  }
+  
+  .logout-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Ensure icon is always visible */
+.logout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
