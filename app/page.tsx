@@ -102,9 +102,12 @@ export default function Home() {
       <div style={styles.page}>
         <div style={styles.container}>
           <header style={styles.header}>
-            <div>
-              <h1 style={styles.h1}>{siteTitle}</h1>
-              <p style={styles.sub}>{siteSubtitle}</p>
+            <div style={styles.headerLeft}>
+              <img src="/logo.webp" alt="Microbin Console logo" width="40" height="40" style={styles.logo} />
+              <div>
+                <h1 className="page-title" style={styles.h1}>{siteTitle}</h1>
+                <p className="page-subtitle" style={styles.sub}>{siteSubtitle}</p>
+              </div>
             </div>
             <div style={styles.headerRight}>
               <a href={headerLinkHref} target="_blank" rel="noreferrer" style={styles.linkMuted}>
@@ -224,9 +227,22 @@ const styles: Record<string, React.CSSProperties> = {
   header: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 12,
     marginBottom: 16,
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 0,
+    flex: '1 1 auto',
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    flexShrink: 0,
   },
   headerRight: {
     display: 'flex',
