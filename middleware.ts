@@ -10,8 +10,9 @@ export function middleware(request: NextRequest) {
     }
 
     // Allow static files (Next.js assets, favicon, and public images)
+    // Only allow image files at root level (from /public directory)
     if (pathname.startsWith('/_next') || pathname.startsWith('/favicon.ico') || 
-        /\.(webp|png|jpg|jpeg|gif|svg|ico)$/i.test(pathname)) {
+        /^\/[^/]+\.(webp|png|jpg|jpeg|gif|svg|ico|webmanifest)$/i.test(pathname)) {
         return NextResponse.next();
     }
 
