@@ -46,4 +46,10 @@ body {
   .logout-text {
     display: none;
   }
+
+  /* Hide page title and subtitle on mobile */
+  .page-title,
+  .page-subtitle {
+    display: none;
+  }
 }
