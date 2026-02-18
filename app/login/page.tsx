@@ -48,7 +48,7 @@ export default function LoginPage() {
       <div style={styles.container}>
         <div style={styles.card}>
           <div style={styles.titleContainer}>
-            <img src="/logo.webp" alt="Microbin Console logo" style={styles.logo} />
+            <img src="/logo.webp" alt="Microbin Console logo" width="64" height="64" style={styles.logo} />
             <h1 style={styles.h1}>Microbin Console</h1>
           </div>
           <p style={styles.sub}>请输入密码以继续</p>
