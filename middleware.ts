@@ -9,8 +9,9 @@ export function middleware(request: NextRequest) {
         return NextResponse.next();
     }
 
-    // Allow static files
-    if (pathname.startsWith('/_next') || pathname.startsWith('/favicon.ico')) {
+    // Allow static files (Next.js assets, favicon, and public images)
+    if (pathname.startsWith('/_next') || pathname.startsWith('/favicon.ico') || 
+        /\.(webp|png|jpg|jpeg|gif|svg|ico)$/i.test(pathname)) {
         return NextResponse.next();
     }
 
