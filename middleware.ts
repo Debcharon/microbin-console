@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Pattern to match root-level static image files from /public directory
+// Note: /public directory in Next.js is designed for public assets that should be accessible.
+// This pattern is restricted to root-level files only to prevent bypassing auth for nested paths.
 const PUBLIC_IMAGE_PATTERN = /^\/[^/]+\.(webp|png|jpg|jpeg|gif|svg|ico|webmanifest)$/i;
 
 export function middleware(request: NextRequest) {
