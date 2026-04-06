@@ -100,16 +100,16 @@ export default function Home() {
 
   return (
       <div style={styles.page}>
-        <div style={styles.container}>
-          <header style={styles.header}>
-            <div style={styles.headerLeft}>
+        <header className="site-header">
+          <div className="header-inner" style={styles.headerInner}>
+            <div className="header-left" style={styles.headerLeft}>
               <img src="/logo.webp" alt="Microbin Console logo" width="40" height="40" style={styles.logo} />
               <div>
                 <h1 className="page-title" style={styles.h1}>{siteTitle}</h1>
                 <p className="page-subtitle" style={styles.sub}>{siteSubtitle}</p>
               </div>
             </div>
-            <div style={styles.headerRight}>
+            <div className="header-right" style={styles.headerRight}>
               <a href={headerLinkHref} target="_blank" rel="noreferrer" style={styles.linkMuted}>
                 {headerLinkText}
               </a>
@@ -122,8 +122,11 @@ export default function Home() {
                 <span className="logout-text">退出登录</span>
               </button>
             </div>
-          </header>
+          </div>
+        </header>
 
+        <div style={styles.container}>
+          <div className="content-grid">
           <section style={styles.card}>
             <form onSubmit={onCreate} style={styles.form}>
               <div style={styles.row}>
@@ -170,7 +173,7 @@ export default function Home() {
           </section>
 
           {resp ? (
-              <section style={{ ...styles.card, marginTop: 16 }}>
+              <section style={styles.card}>
                 {'error' in resp ? (
                     <div>
                       <div style={styles.badgeError}>创建失败</div>
@@ -207,6 +210,7 @@ export default function Home() {
                 )}
               </section>
           ) : null}
+          </div>
 
           <footer style={styles.footer}>
             <span style={styles.footerText}>提示：301 会被浏览器缓存，path 不建议频繁修改目标地址。</span>
@@ -221,15 +225,18 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh',
     background: 'linear-gradient(180deg, #0b1020 0%, #070a12 60%, #05060a 100%)',
     color: '#e8eaf0',
-    padding: 24,
   },
-  container: { maxWidth: 820, margin: '0 auto' },
-  header: {
+  container: { maxWidth: 960, margin: '0 auto', padding: '32px 20px 48px' },
+  headerInner: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 16,
+    padding: '0 20px',
+    maxWidth: 960,
+    margin: '0 auto',
+    height: 60,
+    flexWrap: 'wrap',
   },
   headerLeft: {
     display: 'flex',
