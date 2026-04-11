@@ -243,17 +243,15 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {shortUrl ? (
-                    <div style={styles.qrSection}>
-                      <span style={styles.k}>二维码</span>
-                      <div style={styles.qrWrapper}>
-                        <QRCodeSVG ref={qrRef} value={shortUrl} size={150} bgColor="#ffffff" fgColor="#000000" level="M" />
-                      </div>
-                      <button type="button" onClick={onDownloadQR} style={styles.secondaryBtn}>
-                        下载二维码
-                      </button>
+                  <div style={styles.qrSection}>
+                    <span style={styles.k}>二维码</span>
+                    <div style={styles.qrWrapper}>
+                      <QRCodeSVG ref={qrRef} value={shortUrl} size={150} bgColor="#ffffff" fgColor="#000000" level="M" />
                     </div>
-                  ) : null}
+                    <button type="button" onClick={onDownloadQR} style={styles.secondaryBtn}>
+                      下载二维码
+                    </button>
+                  </div>
                 </div>
               )}
             </section>
