@@ -1,14 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { QRCodeSVG } from 'qrcode.react';
+import { ThemeToggle } from './components/ThemeProvider';
 
 type CreateResponse =
     | { path: string; targetUrl: string }
     | { error: string; detail?: string };
 
 function normalizePath(input: string) {
-  // English comment: normalize user input path
+  // Normalize user input path: strip leading/trailing slashes
   const s = (input || '').trim();
   const noLeading = s.startsWith('/') ? s.slice(1) : s;
   const noTrailing = noLeading.replace(/\/+$/, '');
@@ -23,6 +25,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<CreateResponse | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const qrRef = useRef<SVGSVGElement>(null);
 
   const normalizedPath = useMemo(() => normalizePath(path), [path]);
   const shortUrl = useMemo(() => {
@@ -92,6 +96,22 @@ export default function Home() {
     setTimeout(() => setCopied(false), 1200);
   }
 
+  function onDownloadQR() {
+    const svg = qrRef.current;
+    if (!svg) return;
+    const serializer = new XMLSerializer();
+    const svgStr = serializer.serializeToString(svg);
+    const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'qrcode.svg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   async function onLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
@@ -99,259 +119,344 @@ export default function Home() {
   }
 
   return (
-      <div style={styles.page}>
-        <div style={styles.container}>
-          <header style={styles.header}>
-            <div style={styles.headerLeft}>
-              <img src="/logo.webp" alt="Microbin Console logo" width="40" height="40" style={styles.logo} />
-              <div>
-                <h1 className="page-title" style={styles.h1}>{siteTitle}</h1>
-                <p className="page-subtitle" style={styles.sub}>{siteSubtitle}</p>
-              </div>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <header style={styles.header}>
+          <div style={styles.headerLeft}>
+            <img src="/logo.webp" alt="Microbin Console logo" width="28" height="28" style={styles.logo} />
+            <div>
+              <h1 className="page-title" style={styles.h1}>{siteTitle}</h1>
+              <p className="page-subtitle" style={styles.sub}>{siteSubtitle}</p>
             </div>
-            <div style={styles.headerRight}>
-              <a href={headerLinkHref} target="_blank" rel="noreferrer" style={styles.linkMuted}>
-                {headerLinkText}
-              </a>
-              <button onClick={onLogout} style={styles.logoutBtn} className="logout-btn">
-                <span className="logout-icon" aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M6 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V3.33333C2 2.97971 2.14048 2.64057 2.39052 2.39052C2.64057 2.14048 2.97971 2 3.33333 2H6M10.6667 11.3333L14 8M14 8L10.6667 4.66667M14 8H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-                <span className="logout-text">退出登录</span>
-              </button>
-            </div>
-          </header>
+          </div>
+          <div style={styles.headerRight}>
+            <a href={headerLinkHref} target="_blank" rel="noreferrer" style={styles.linkMuted}>
+              {headerLinkText}
+            </a>
+            <ThemeToggle />
+            <button onClick={onLogout} className="logout-btn">
+              <span className="logout-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </span>
+              <span className="logout-text">退出登录</span>
+            </button>
+          </div>
+        </header>
 
+        <div className="content-grid">
           <section style={styles.card}>
+            <p style={styles.sectionTitle}>创建短链</p>
             <form onSubmit={onCreate} style={styles.form}>
               <div style={styles.row}>
-                <label style={styles.label}>
-                  Path
-                  <input
-                      value={path}
-                      onChange={(e) => setPath(e.target.value)}
-                      placeholder="hello 或 foo/bar"
-                      style={styles.input}
-                  />
-                  <div style={styles.hint}>
-                    生成链接：<code style={styles.code}>{shortUrl || '（请先输入 path）'}</code>
-                  </div>
-                  {pathError ? <div style={styles.errorText}>{pathError}</div> : null}
-                </label>
+                <span style={styles.fieldLabel}>Path</span>
+                <input
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  placeholder="hello 或 foo/bar"
+                  style={styles.input}
+                />
+                <div style={styles.hint}>
+                  生成链接：<code style={styles.code}>{shortUrl || '（请先输入 path）'}</code>
+                </div>
+                {pathError ? <div style={styles.errorText}>{pathError}</div> : null}
               </div>
 
               <div style={styles.row}>
-                <label style={styles.label}>
-                  Target URL
-                  <input
-                      value={targetUrl}
-                      onChange={(e) => setTargetUrl(e.target.value)}
-                      placeholder="https://example.com"
-                      style={styles.input}
-                  />
-                  {urlError ? <div style={styles.errorText}>{urlError}</div> : null}
-                </label>
+                <span style={styles.fieldLabel}>Target URL</span>
+                <input
+                  value={targetUrl}
+                  onChange={(e) => setTargetUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  style={styles.input}
+                />
+                {urlError ? <div style={styles.errorText}>{urlError}</div> : null}
               </div>
 
               <div style={styles.actions}>
-                <button type="submit" disabled={loading} style={styles.primaryBtn}>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={loading ? { ...styles.primaryBtn, opacity: 0.7, cursor: 'not-allowed' } : styles.primaryBtn}
+                >
                   {loading ? '创建中...' : '创建短链'}
                 </button>
 
                 {shortUrl ? (
-                    <button type="button" onClick={onCopy} style={styles.secondaryBtn}>
-                      {copied ? '已复制' : '复制短链'}
-                    </button>
+                  <button type="button" onClick={onCopy} style={styles.secondaryBtn}>
+                    {copied ? '✓ 已复制' : '复制短链'}
+                  </button>
                 ) : null}
               </div>
             </form>
           </section>
 
           {resp ? (
-              <section style={{ ...styles.card, marginTop: 16 }}>
-                {'error' in resp ? (
-                    <div>
-                      <div style={styles.badgeError}>创建失败</div>
-                      <div style={styles.resultTitle}>{resp.error}</div>
-                      {resp.detail ? <pre style={styles.pre}>{resp.detail}</pre> : null}
-                      <div style={styles.hint}>如果提示 409，表示 path 已被占用。</div>
-                    </div>
-                ) : (
-                    <div>
-                      <div style={styles.badgeOk}>创建成功</div>
-                      <div style={styles.resultTitle}>你的短链已生成</div>
-                      <div style={styles.kv}>
-                        <div style={styles.k}>Short URL</div>
-                        <div style={styles.v}>
-                          <a href={shortUrl} target="_blank" rel="noreferrer" style={styles.link}>
-                            {shortUrl}
-                          </a>
-                        </div>
-                      </div>
-                      <div style={styles.kv}>
-                        <div style={styles.k}>Target URL</div>
-                        <div style={styles.v}>
-                          <a href={resp.targetUrl} target="_blank" rel="noreferrer" style={styles.linkMuted}>
-                            {resp.targetUrl}
-                          </a>
-                        </div>
-                      </div>
-                      <div style={styles.actions}>
-                        <button type="button" onClick={onCopy} style={styles.primaryBtn}>
-                          {copied ? '已复制' : '复制短链'}
-                        </button>
-                      </div>
-                    </div>
-                )}
-              </section>
-          ) : null}
+            <section style={styles.card}>
+              {'error' in resp ? (
+                <div>
+                  <div style={styles.badgeError}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+                    </svg>
+                    创建失败
+                  </div>
+                  <div style={styles.resultTitle}>{resp.error}</div>
+                  {resp.detail ? <pre style={styles.pre}>{resp.detail}</pre> : null}
+                  <div style={styles.hint}>如果提示 409，表示 path 已被占用。</div>
+                </div>
+              ) : (
+                <div>
+                  <div style={styles.badgeOk}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    创建成功
+                  </div>
+                  <div style={styles.resultTitle}>你的短链已生成</div>
 
-          <footer style={styles.footer}>
-            <span style={styles.footerText}>提示：301 会被浏览器缓存，path 不建议频繁修改目标地址。</span>
-          </footer>
+                  <div style={styles.kv}>
+                    <div style={styles.k}>Short URL</div>
+                    <div style={styles.v}>
+                      <a href={shortUrl} target="_blank" rel="noreferrer" style={styles.link}>
+                        {shortUrl}
+                      </a>
+                    </div>
+                  </div>
+                  <div style={styles.kv}>
+                    <div style={styles.k}>Target URL</div>
+                    <div style={styles.v}>
+                      <a href={resp.targetUrl} target="_blank" rel="noreferrer" style={styles.linkMuted}>
+                        {resp.targetUrl}
+                      </a>
+                    </div>
+                  </div>
+
+                  <hr style={styles.divider} />
+
+                  <div style={styles.actions}>
+                    <button type="button" onClick={onCopy} style={styles.primaryBtn}>
+                      {copied ? '✓ 已复制' : '复制短链'}
+                    </button>
+                  </div>
+
+                  <div style={styles.qrSection}>
+                    <span style={styles.k}>二维码</span>
+                    <div style={styles.qrWrapper}>
+                      <QRCodeSVG ref={qrRef} value={shortUrl} size={150} bgColor="#ffffff" fgColor="#000000" level="M" />
+                    </div>
+                    <button type="button" onClick={onDownloadQR} style={styles.secondaryBtn}>
+                      下载二维码
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          ) : null}
         </div>
+
+        <footer style={styles.footer}>
+          <span style={styles.footerText}>提示：301 会被浏览器缓存，path 不建议频繁修改目标地址。</span>
+        </footer>
       </div>
+    </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: '100vh',
-    background: 'linear-gradient(180deg, #0b1020 0%, #070a12 60%, #05060a 100%)',
-    color: '#e8eaf0',
-    padding: 24,
+    background: 'var(--background)',
+    color: 'var(--text-primary)',
+    padding: '0 0 48px',
   },
-  container: { maxWidth: 820, margin: '0 auto' },
+  container: { maxWidth: 1000, margin: '0 auto', padding: '0 20px' },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 16,
+    padding: '16px 0',
+    borderBottom: '1px solid var(--border-subtle)',
+    marginBottom: 32,
+    flexWrap: 'wrap',
   },
   headerLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     minWidth: 0,
     flex: '1 1 auto',
+    flexWrap: 'wrap',
   },
   logo: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     flexShrink: 0,
   },
   headerRight: {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    minWidth: 0,
+    flex: '0 1 auto',
   },
-  logoutBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '6px 12px',
-    borderRadius: 8,
-    border: '1px solid rgba(255,255,255,0.12)',
-    background: 'rgba(255,255,255,0.06)',
-    color: '#e8eaf0',
-    cursor: 'pointer',
-    fontSize: 12,
-    whiteSpace: 'nowrap',
-  },
-  h1: { margin: 0, fontSize: 28, letterSpacing: 0.2 },
-  sub: { margin: '6px 0 0', color: '#aab2c5', fontSize: 14 },
+  h1: { margin: 0, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-primary)' },
+  sub: { margin: '2px 0 0', color: 'var(--text-secondary)', fontSize: 12 },
   card: {
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.10)',
-    borderRadius: 14,
-    padding: 18,
-    boxShadow: '0 10px 30px rgba(0,0,0,0.35)',
-    backdropFilter: 'blur(8px)',
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 10,
+    padding: '20px',
   },
-  form: { display: 'grid', gap: 14 },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase' as const,
+    marginBottom: 16,
+    marginTop: 0,
+  },
+  form: { display: 'grid', gap: 16 },
   row: { display: 'grid', gap: 6 },
-  label: { display: 'grid', gap: 6, fontSize: 13, color: '#cfd6e6' },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'var(--text-primary)',
+    letterSpacing: '0.01em',
+  },
   input: {
     width: '100%',
-    padding: '10px 12px',
-    borderRadius: 10,
-    border: '1px solid rgba(255,255,255,0.12)',
-    background: 'rgba(0,0,0,0.25)',
-    color: '#e8eaf0',
+    maxWidth: '100%',
+    padding: '8px 11px',
+    borderRadius: 6,
+    border: '1px solid var(--border)',
+    background: 'var(--background)',
+    color: 'var(--text-primary)',
     outline: 'none',
+    fontSize: 13,
+    boxSizing: 'border-box' as const,
+    fontFamily: 'inherit',
   },
-  hint: { color: '#aab2c5', fontSize: 12, lineHeight: 1.5 },
+  hint: { color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.5, marginTop: 4 },
   code: {
-    background: 'rgba(0,0,0,0.25)',
-    border: '1px solid rgba(255,255,255,0.10)',
+    fontFamily: 'var(--font-geist-mono), monospace',
+    background: 'var(--surface-raised)',
+    border: '1px solid var(--border)',
     padding: '2px 6px',
-    borderRadius: 8,
+    borderRadius: 4,
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+  },
+  errorText: { color: 'var(--error-text)', fontSize: 12, marginTop: 2 },
+  actions: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+  primaryBtn: {
+    padding: '8px 16px',
+    borderRadius: 6,
+    border: '1px solid var(--accent)',
+    background: 'var(--accent)',
+    color: 'var(--accent-fg)',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+    fontFamily: 'inherit',
+    letterSpacing: '0.01em',
+    whiteSpace: 'nowrap' as const,
+  },
+  secondaryBtn: {
+    padding: '8px 16px',
+    borderRadius: 6,
+    border: '1px solid var(--border)',
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap' as const,
+  },
+  divider: {
+    border: 'none',
+    borderTop: '1px solid var(--border-subtle)',
+    margin: '20px 0',
+  },
+  badgeOk: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '3px 10px',
+    borderRadius: 999,
+    background: 'var(--success-bg)',
+    border: '1px solid var(--success-border)',
+    color: 'var(--success-text)',
+    fontSize: 11,
+    fontWeight: 500,
+    letterSpacing: '0.04em',
+    marginBottom: 14,
+  },
+  badgeError: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '3px 10px',
+    borderRadius: 999,
+    background: 'var(--error-bg)',
+    border: '1px solid var(--error-border)',
+    color: 'var(--error-text)',
+    fontSize: 11,
+    fontWeight: 500,
+    letterSpacing: '0.04em',
+    marginBottom: 14,
+  },
+  resultTitle: { fontSize: 16, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)', letterSpacing: '-0.01em' },
+  kv: {
+    display: 'grid',
+    gridTemplateColumns: '100px 1fr',
+    gap: 8,
+    alignItems: 'start',
+    marginTop: 10,
+  },
+  k: { color: 'var(--text-secondary)', fontSize: 12, paddingTop: 1, fontWeight: 500 },
+  v: {
+    fontSize: 13,
+    minWidth: 0,
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
+    color: 'var(--text-primary)',
+  },
+  link: {
+    color: 'var(--text-primary)',
+    textDecoration: 'underline',
+    textDecorationColor: 'var(--border)',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
   },
-  errorText: { color: '#ff9aa2', fontSize: 12 },
-  actions: { display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 },
-  primaryBtn: {
-    padding: '10px 14px',
-    borderRadius: 10,
-    border: '1px solid rgba(255,255,255,0.12)',
-    background: 'linear-gradient(180deg, #3b82f6 0%, #2563eb 100%)',
-    color: 'white',
-    cursor: 'pointer',
-  },
-  secondaryBtn: {
-    padding: '10px 14px',
-    borderRadius: 10,
-    border: '1px solid rgba(255,255,255,0.12)',
-    background: 'rgba(255,255,255,0.06)',
-    color: '#e8eaf0',
-    cursor: 'pointer',
-  },
-  badgeOk: {
-    display: 'inline-block',
-    padding: '2px 8px',
-    borderRadius: 999,
-    background: 'rgba(34,197,94,0.15)',
-    border: '1px solid rgba(34,197,94,0.35)',
-    color: '#7ee0a3',
+  linkMuted: {
+    color: 'var(--text-secondary)',
+    textDecoration: 'none',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
     fontSize: 12,
-    marginBottom: 10,
   },
-  badgeError: {
-    display: 'inline-block',
-    padding: '2px 8px',
-    borderRadius: 999,
-    background: 'rgba(239,68,68,0.15)',
-    border: '1px solid rgba(239,68,68,0.35)',
-    color: '#ff9aa2',
-    fontSize: 12,
-    marginBottom: 10,
-  },
-  resultTitle: { fontSize: 16, marginBottom: 10 },
-  kv: {
-    display: 'grid',
-    gridTemplateColumns: '120px 1fr',
-    gap: 10,
-    alignItems: 'start',
-    marginTop: 10,
-    minWidth: 0,
-  },
-  k: { color: '#aab2c5', fontSize: 12, paddingTop: 2 },
-  v: { fontSize: 14, minWidth: 0, overflowWrap: 'anywhere' },
-  link: { color: '#93c5fd', textDecoration: 'none', overflowWrap: 'anywhere', wordBreak: 'break-word' },
-  linkMuted: { color: '#aab2c5', textDecoration: 'none', overflowWrap: 'anywhere', wordBreak: 'break-word' },
   pre: {
     marginTop: 10,
-    padding: 12,
-    borderRadius: 10,
-    background: 'rgba(0,0,0,0.25)',
-    border: '1px solid rgba(255,255,255,0.10)',
+    padding: '10px 12px',
+    borderRadius: 6,
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
     overflow: 'auto',
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    fontFamily: 'var(--font-geist-mono), monospace',
   },
-  footer: { marginTop: 18, padding: 6 },
-  footerText: { color: '#7f8aa6', fontSize: 12 },
+  footer: { marginTop: 32 },
+  footerText: { color: 'var(--text-muted)', fontSize: 12 },
+  qrSection: { marginTop: 18, display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', gap: 12 },
+  qrWrapper: { padding: 10, background: '#ffffff', borderRadius: 8, display: 'inline-block' },
 };

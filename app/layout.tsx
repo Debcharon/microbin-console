@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "./components/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,13 +13,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Configurable site metadata
-const siteTitle = process.env.SITE_TITLE || "Microbin Console";
-const siteDescription = process.env.SITE_DESCRIPTION || "Create custom path short links with 301 redirects";
-
 export const metadata: Metadata = {
-  title: siteTitle,
-  description: siteDescription,
+  title: process.env.SITE_TITLE || "Microbin Console",
+  description: process.env.SITE_DESCRIPTION || "Create custom path short links with 301 redirects",
 };
 
 export default function RootLayout({
@@ -27,11 +24,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="light">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
